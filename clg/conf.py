@@ -1,82 +1,134 @@
-# -*- coding: utf-8 -*-
+# coding: utf-8
 
 import os
 import sys
+import clg
 import yaml
 import yamlordereddictloader
-import clif
-import clif.logger as logger
-from pprint import pformat
+from addict import Dict
 from collections import OrderedDict
 
-_SELF = sys.modules[__name__]
 
+class CLGConfigError(Exception):
+    def __init__(self, filepath, msg):
+        Exception.__init__(self, msg)
+        self.filepath = filepath
+        self.msg = msg
 
-def init(args):
-    setattr(_SELF, 'args', args)
-    if 'conf_file' not in args:
-        raise clif.CliError('no configuration file')
+    def __str__(self):
+        return '(%s) %s' % (self.filepath, self.msg)
 
-    try:
-        config = yaml.load(open(args.conf_file), Loader=yamlordereddictloader.Loader) or {}
-    except Exception as err:
-        config = {}
-
-    for param, value in config.items():
-        setattr(_SELF, param.upper(), replace_paths(value))
-
-    # Init logs.
-    commands = [value for (arg, value) in sorted(args) if arg.startswith('command')]
-    logger.init('-'.join(commands),
-                os.path.join(args.logdir, *commands),
-                args.loglevel)
-    load_commands_conf(commands)
-
-    logger.debug('configuration parameters:\n%s' %
-                 pformat({attr: getattr(_SELF, attr)
-                          for attr in vars(_SELF)
-                          if attr.isupper() and not attr.startswith('_')}))
 
 def replace_paths(value):
-    return {str: lambda: value.replace('__FILE__', sys.path[0]),
-            list: lambda: [replace_paths(elt) for elt in value],
-            dict: lambda: {key: replace_paths(val) for key, val in value.items()},
-            OrderedDict: lambda: {key: replace_paths(val) for key, val in value.items()}
-           }.get(type(value), lambda: value)()
+    """Replace *__FILE__* string in ``value`` (if it is not a string, recursively
+    parse the data) by the path of the main script (``sys.path[0]``).
+    """
+    return {
+        str: lambda: value.replace('__FILE__', sys.path[0]),
+        list: lambda: [replace_paths(elt) for elt in value],
+        dict: lambda: {key: replace_paths(val) for key, val in value.items()},
+        OrderedDict: lambda: {key: replace_paths(val) for key, val in value.items()}
+    }.get(type(value), lambda: value)()
 
-def load_commands_conf(commands):
-    # Load intermediary configuration files.
-    cmd_path = os.path.join(sys.path[0], 'conf')
-    for cmd in commands:
-        cmd_path = os.path.join(cmd_path, cmd)
-        cmd_file = '%s.yml' % cmd_path
-        if os.path.exists(cmd_file):
-            load_file(cmd_file)
 
-    # Load every file in the directory of the command (if exits).
-    if os.path.exists(cmd_path):
-        for filename in os.listdir(cmd_path):
-            if filename.startswith('.'):
-                continue
-            filepath = os.path.join(cmd_path, filename)
-            if os.path.isfile(filepath):
-                load_file(filepath, False)
+class Config(OrderedDict):
+    def init(self, args):
+        """Initialize the object with command-line arguments ``args``."""
+        conf_file = os.path.expanduser(
+            args['conf_file'] or os.path.join(sys.path[0], 'conf.yml'))
+        conf_dir = os.path.expanduser(
+            args['conf_dir'] or os.path.join(os.path.dirname(conf_file), 'conf'))
+        commands = [value for (arg, value) in sorted(args) if arg.startswith('command')]
 
-def load_file(filepath, root=True):
-    logger.debug("loading configuration file '%s'" % filepath)
-    filename, fileext = os.path.splitext(os.path.basename(filepath))
-    try:
-        if fileext == '.yml':
-            conf = yaml.load(open(filepath), Loader=yamlordereddictloader.Loader)
-            conf = replace_paths(conf)
-            if root:
-                for attr, value in conf.items():
-                    setattr(_SELF, attr.replace('-', '_').upper(), value)
-            else:
-                setattr(_SELF, filename.upper(), conf)
+        # Load main configuration file.
+        if os.path.exists(conf_file):
+            self.load_cmd_file(conf_file)
+
+        # Load intermediary configuration files.
+        if os.path.exists(conf_dir):
+            self.load_dir(conf_dir, clg.config, commands)
+
+    def __getattribute__(self, name):
+        """Allow direct access to elements in uppercase."""
+        if name.isupper():
+            return self[name]
         else:
-            with open(filepath) as fhandler:
-                setattr(_SELF, filename.upper(), fhandler.read())
-    except Exception as err:
-        logger.error("unable to load configuration file '%s': %s" % (filepath, err),
-                     quit=True)
+            return OrderedDict.__getattribute__(self, name)
+
+    def __setattr__(self, name, value):
+        """Allow elements in uppercase to be added to the OrderedDict."""
+        if name.isupper():
+            self[name] = value
+        else:
+            return OrderedDict.__setattr__(self, name, value)
+
+    def load_cmd_file(self, filepath):
+        """Load YAML file ``filepath`` and add each element to the object.."""
+        try:
+            conf = yaml.load(open(filepath), Loader=yamlordereddictloader.Loader)
+        except (IOError, yaml.YAMLError) as err:
+            raise CLGConfigError(filepath, 'unable to load file: %s' % err)
+
+        for param, value in conf.items():
+            setattr(self, param.upper(), replace_paths(value))
+
+    def load_dir(self, dirpath, config, commands):
+        """Recursively load ``dirpath`` directory for adding elements in the object
+        based on the current configuration ``config`` and the current ``commands``.
+        """
+        def get_subcommands(config):
+            return ({}
+                    if not 'subparsers' in config
+                    else config['subparsers'].get('parsers', config['subparsers']))
+
+        config = get_subcommands(config)
+
+        while commands:
+            cur_command = commands.pop(0)
+
+            # Load command's configuration file and directory.
+            cmd_dirpath = os.path.join(dirpath, cur_command)
+            cmd_filepath = '%s.yml' % cmd_dirpath
+            if os.path.exists(cmd_filepath):
+                self.load_cmd_file(cmd_filepath)
+            if os.path.exists(cmd_dirpath):
+                self.load_dir(cmd_dirpath, config[cur_command], commands)
+
+            # Load files and directories that are not for other subcommands.
+            for filename in sorted(os.listdir(dirpath)):
+                filepath = os.path.join(dirpath, filename)
+                if os.path.isfile(filepath):
+                    filename, fileext = os.path.splitext(filename)
+                    if filename not in config:
+                        setattr(self, filename.upper(), self.load_file(filepath))
+                elif filename not in config:
+                    setattr(self, filename.upper(), self.load_subdir(filepath))
+
+    def load_subdir(self, dirpath):
+        """Recursively parse ``dirpath`` directory for retrieving all
+        configuration elements.
+        """
+        conf = Dict()
+        for filename in sorted(os.listdir(dirpath)):
+            filepath = os.path.join(dirpath, filename)
+            if os.path.isfile(filepath):
+                conf[os.path.splitext(filename)[0]] = self.load_file(filepath)
+            else:
+                conf[filename] = self.load_subdir(filepath)
+        return conf
+
+    def load_file(self, filepath):
+        """Load ``filepath`` file based on its extension."""
+        fileext = os.path.splitext(filepath)
+        with open(filepath) as fhandler:
+            return replace_paths({
+                '.yml': lambda: yaml.load(fhandler, Loader=yamlordereddictloader.Loader),
+                '.json': lambda: json.load(fhandler, object_pairs_hook=OrderedDict)
+            }.get(fileext, lambda: fhandler.read())())
+
+    def pprint(self):
+        """Pretty print the object using `json` module."""
+        import json
+        return json.dumps(OrderedDict(self.items()), indent=4)
+
+sys.modules[__name__] = Config()

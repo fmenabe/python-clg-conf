@@ -26,4 +26,4 @@ setup(
         'Topic :: Utilities'
     ],
     py_modules=['clg/conf'],
-    install_requires=['clg'])
+    install_requires=['clg', 'addict'])

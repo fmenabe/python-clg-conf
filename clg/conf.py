@@ -97,6 +97,10 @@ class Config(OrderedDict):
 
             # Load files and directories that are not for other subcommands.
             for filename in sorted(os.listdir(dirpath)):
+                # Ignore hidden files.
+                if filename.startswith('.'):
+                    continue
+
                 filepath = os.path.join(dirpath, filename)
                 if os.path.isfile(filepath):
                     filename, fileext = os.path.splitext(filename)

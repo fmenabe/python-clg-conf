@@ -92,7 +92,8 @@ class Config(OrderedDict):
             if os.path.exists(cmd_filepath):
                 self.load_cmd_file(cmd_filepath)
             if os.path.exists(cmd_dirpath):
-                self.load_dir(cmd_dirpath, config[cur_command], commands)
+                # Be sure directory is loaded for last commands (tree's leaves).
+                self.load_dir(cmd_dirpath, config[cur_command], commands or [cur_command])
 
             # Load files and directories that are not for other subcommands.
             for filename in sorted(os.listdir(dirpath)):

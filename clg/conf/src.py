@@ -135,5 +135,3 @@ class Config(OrderedDict):
         """Pretty print the object using `json` module."""
         import json
         return json.dumps(OrderedDict(self.items()), indent=4)
-
-sys.modules[__name__] = Config()

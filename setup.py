@@ -25,5 +25,5 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Topic :: Utilities'
     ],
-    py_modules=['clg/conf'],
+    packages=['clg/conf'],
     install_requires=['clg', 'addict'])

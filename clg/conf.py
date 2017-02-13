@@ -119,7 +119,7 @@ class Config(OrderedDict):
 
     def load_file(self, filepath):
         """Load ``filepath`` file based on its extension."""
-        fileext = os.path.splitext(filepath)
+        _, fileext = os.path.splitext(filepath)
         with open(filepath) as fhandler:
             return replace_paths({
                 '.yml': lambda: yaml.load(fhandler, Loader=yamlordereddictloader.Loader),

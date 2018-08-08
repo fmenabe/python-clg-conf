@@ -4,7 +4,7 @@ import os
 import sys
 import clg
 import yaml
-import yamlordereddictloader
+import yamlloader
 from addict import Dict
 from collections import OrderedDict
 
@@ -27,7 +27,8 @@ def replace_paths(value):
         str: lambda: value.replace('__FILE__', sys.path[0]),
         list: lambda: [replace_paths(elt) for elt in value],
         dict: lambda: {key: replace_paths(val) for key, val in value.items()},
-        OrderedDict: lambda: {key: replace_paths(val) for key, val in value.items()}
+        OrderedDict: (lambda:
+            OrderedDict((key, replace_paths(val)) for key, val in value.items()))
     }.get(type(value), lambda: value)()
 
 
@@ -65,7 +66,7 @@ class Config(OrderedDict):
     def load_cmd_file(self, filepath):
         """Load YAML file ``filepath`` and add each element to the object.."""
         try:
-            conf = yaml.load(open(filepath), Loader=yamlordereddictloader.Loader)
+            conf = yaml.load(open(filepath), Loader=yamlloader.ordereddict.CLoader)
         except (IOError, yaml.YAMLError) as err:
             raise CLGConfigError(filepath, 'unable to load file: %s' % err)
 
@@ -127,7 +128,7 @@ class Config(OrderedDict):
         _, fileext = os.path.splitext(filepath)
         with open(filepath) as fhandler:
             return replace_paths({
-                '.yml': lambda: yaml.load(fhandler, Loader=yamlordereddictloader.Loader),
+                '.yml': lambda: yaml.load(fhandler, Loader=yamlloader.ordereddict.CLoader),
                 '.json': lambda: json.load(fhandler, object_pairs_hook=OrderedDict)
             }.get(fileext, lambda: fhandler.read())())
 

@@ -30,6 +30,7 @@ def replace_paths(value):
 class Config(OrderedDict):
     def init(self, args, **kwargs):
         """Initialize the object with command-line arguments ``args``."""
+        # Retrieve configuration file and directory or set defaults.
         conf_file = os.path.expanduser(
             args._get('conf_file', kwargs.pop('conf_file', DEFAULT_CONF_FILE)))
         conf_dir = os.path.expanduser(

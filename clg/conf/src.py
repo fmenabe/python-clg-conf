@@ -47,7 +47,11 @@ class Config(OrderedDict):
     def __getattribute__(self, name):
         """Allow direct access to elements in uppercase."""
         if name.isupper():
-            return self[name]
+            try:
+                return self[name]
+            except KeyError as err:
+                raise CLGConfigError("key '{:s}' not found in configuration"
+                                     .format(err.args[0]))
         else:
             return OrderedDict.__getattribute__(self, name)
 

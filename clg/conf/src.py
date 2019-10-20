@@ -12,14 +12,7 @@ DEFAULT_CONF_FILE = os.path.join(sys.path[0], 'conf.yml')
 DEFAULT_CONF_DIR = os.path.join(sys.path[0], 'conf')
 
 class CLGConfigError(Exception):
-    def __init__(self, filepath, msg):
-        Exception.__init__(self, msg)
-        self.filepath = filepath
-        self.msg = msg
-
-    def __str__(self):
-        return '(%s) %s' % (self.filepath, self.msg)
-
+    pass
 
 def replace_paths(value):
     """Replace *__FILE__* string in ``value`` (if it is not a string, recursively
@@ -70,7 +63,7 @@ class Config(OrderedDict):
         try:
             conf = yaml.load(open(filepath), Loader=yamlloader.ordereddict.CLoader)
         except (IOError, yaml.YAMLError) as err:
-            raise CLGConfigError(filepath, 'unable to load file: %s' % err)
+            raise CLGConfigError('(%s) unable to load file: %s' % (filepath, err))
 
         for param, value in conf.items():
             setattr(self, param.upper(), replace_paths(value))

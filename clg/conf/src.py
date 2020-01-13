@@ -46,7 +46,7 @@ class Config(OrderedDict):
             self.load_cmd_file(conf_file)
 
         # Load intermediary configuration files.
-        if os.path.exists(conf_dir):
+        if os.path.isdir(conf_dir):
             self.load_dir(conf_dir, clg.config, commands)
 
     def __getattribute__(self, name):

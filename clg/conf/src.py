@@ -8,6 +8,8 @@ import yamlloader
 from addict import Dict
 from collections import OrderedDict
 
+DEFAULT_CONF_FILE = os.path.join(sys.path[0], 'conf.yml')
+DEFAULT_CONF_DIR = os.path.join(sys.path[0], 'conf')
 
 class CLGConfigError(Exception):
     def __init__(self, filepath, msg):
@@ -33,12 +35,12 @@ def replace_paths(value):
 
 
 class Config(OrderedDict):
-    def init(self, args):
+    def init(self, args, **kwargs):
         """Initialize the object with command-line arguments ``args``."""
         conf_file = os.path.expanduser(
-            args['conf_file'] or os.path.join(sys.path[0], 'conf.yml'))
+            args._get('conf_file', kwargs.pop('conf_file', DEFAULT_CONF_FILE)))
         conf_dir = os.path.expanduser(
-            args['conf_dir'] or os.path.join(os.path.dirname(conf_file), 'conf'))
+            args._get('conf_dir', kwargs.pop('conf_dir', DEFAULT_CONF_DIR)))
         commands = [value for (arg, value) in sorted(args) if arg.startswith('command')]
 
         # Load main configuration file.

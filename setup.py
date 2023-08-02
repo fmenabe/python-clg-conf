@@ -4,10 +4,11 @@ from setuptools import setup
 
 setup(
     name='clg-conf',
-    version='0.1.0',
+    version='1.0.0',
     author='François Ménabé',
     author_email='francois.menabe@gmail.com',
-    url = 'https://clg.readthedocs.org/en/latest/',
+    #url = 'https://clg.readthedocs.org/en/latest/',
+    url = 'http://github.com/fmenabe/python-clg-conf',
     download_url = 'http://github.com/fmenabe/python-clg-conf',
     license='MIT License',
     description='Manage per command configuration files.',
